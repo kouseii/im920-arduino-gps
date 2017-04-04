@@ -1,0 +1,93 @@
+#!/bin/sh /etc/rc.common
+# python supervisor
+# (init script for OpenWrt-yun)
+# Original : https://github.com/Supervisor/initscripts/blob/master/slackware
+
+START=99
+STOP=49
+
+# set HOME for ssh
+HOME=/root
+export HOME
+
+# Time to wait between stop/start on a restart
+SHUTDOWN_TIME=5
+
+# Time to wait after a start before reporting success/fail
+STARTUP_TIME=1
+
+# Location of the pid file
+PIDFILE=/var/run/supervisord.pid
+
+# Config of supervisor
+CONFIG=/etc/supervisor/supervisord.conf
+
+# Daemon to start
+DAEMON=supervisord
+
+supervisord_start() {
+    $DAEMON -c $CONFIG -j $PIDFILE
+}
+
+supervisord_status() {
+    if [ -f $PIDFILE ]
+    then
+        pgrep -f $DAEMON | grep -f $PIDFILE > /dev/null 2>/dev/null
+        if [ $? -eq 0 ]
+        then
+            return 0
+        else
+            return 1
+        fi
+    else
+        return 1
+    fi
+}
+
+supervisord_stop() {
+    kill $(cat $PIDFILE)
+}
+
+start() {
+    echo -n "Starting..."
+    supervisord_start
+    sleep $STARTUP_TIME
+    supervisord_status && echo "DONE [PID: $(cat $PIDFILE)]" || echo "ERROR"
+}
+
+status() {
+    supervisord_status && echo "RUNNING [PID: $(cat $PIDFILE)]" || echo "STOPPED"
+}
+
+stop() {
+    supervisord_status && {
+        echo -n "Stopping $(cat $PIDFILE)..."
+        supervisord_stop
+        sleep $SHUTDOWN_TIME
+        supervisord_status && echo "Failed" || echo "Success"
+    } || {
+        echo "Not Running..."
+    }
+}
+
+restart() {
+    supervisord_status && {
+        echo -n "Stopping $(cat $PIDFILE)..."
+        supervisord_stop
+        sleep $SHUTDOWN_TIME
+        supervisord_status && {
+            echo "Failed"
+            exit 1
+        }
+    } || {
+        echo "Not Running..."
+        exit 1
+    }
+    echo -n "Starting..."
+    supervisord_start
+    sleep $STARTUP_TIME
+    supervisord_status && echo "DONE [PID: $(cat $PIDFILE)]" || echo "ERROR"
+}
+
+EXTRA_COMMANDS="status"
+EXTRA_HELP="	status  Print the status of the service"
